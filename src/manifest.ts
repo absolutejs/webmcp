@@ -3,6 +3,23 @@ import { Type } from "@sinclair/typebox";
 
 export const manifest = defineManifest<Record<string, never>>()({
   contract: 2,
+  discovery: {
+    audiences: ["web-applications", "browser-agents"],
+    intents: [
+      "expose browser actions to agents",
+      "authorize WebMCP tools",
+      "test WebMCP integrations",
+    ],
+    keywords: [
+      "agents",
+      "webmcp",
+      "browser",
+      "tools",
+      "authorization",
+      "audit",
+    ],
+    protocols: ["WebMCP"],
+  },
   identity: {
     accent: "#22c55e",
     category: "ai",
