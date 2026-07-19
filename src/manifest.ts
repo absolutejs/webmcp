@@ -8,6 +8,7 @@ export const manifest = defineManifest<Record<string, never>>()({
     intents: [
       "expose browser actions to agents",
       "authorize WebMCP tools",
+      "project same-origin HTTP actions into WebMCP",
       "test WebMCP integrations",
     ],
     keywords: [
@@ -24,7 +25,7 @@ export const manifest = defineManifest<Record<string, never>>()({
     accent: "#22c55e",
     category: "ai",
     description:
-      "WebMCP draft integration with typed browser tools, input validation, metadata defenses, default-deny policy, audit receipts, lifecycle cleanup, and a spec-shaped test context.",
+      "WebMCP draft integration with typed browser tools, same-origin HTTP action projection, input validation, metadata defenses, default-deny policy, audit receipts, lifecycle cleanup, and a spec-shaped test context.",
     docsUrl: "https://github.com/absolutejs/webmcp",
     name: "@absolutejs/webmcp",
     tagline:

@@ -42,6 +42,34 @@ Use `createWebMcpTestContext()` for deterministic unit and conformance tests in
 Bun or Node. It deliberately adds `getTools()` and `executeTool()` only to the
 test adapter; those methods are not presented as browser-standard APIs.
 
+## Same-origin HTTP actions
+
+`createWebMcpHttpProjectionDocument()` and
+`bootstrapWebMcpHttpActions()` project an authenticated application's typed
+HTTP actions without duplicating its domain implementation in the browser. The
+bootstrap accepts only origin-relative endpoints on the current trustworthy
+origin, sends credentials only with same-origin requests, refuses redirects,
+bounds documents and responses before parsing, validates every tool, and rolls
+back the complete registration if any tool fails. It never uses `exposedTo`, so
+cross-origin frames receive no capability by default.
+
+The HTTP server remains the authorization and audit boundary. The browser
+registry validates structured input and metadata, but a successful tool call
+still requires the server's current session, resource, and domain checks.
+
+```ts
+const mounted = await bootstrapWebMcpHttpActions({
+  manifestPath: "/api/owner/webmcp",
+  actionBasePath: "/api/owner/webmcp/actions/",
+  formats: {
+    uuid: (value) => /^[0-9a-f-]{36}$/iu.test(value),
+  },
+});
+
+// Unregister every tool when the authenticated page unmounts or signs out.
+mounted.dispose();
+```
+
 Specification: <https://webmachinelearning.github.io/webmcp/>
 
 ## License

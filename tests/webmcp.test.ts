@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { Type } from "@sinclair/typebox";
 import {
+  bootstrapWebMcpHttpActions,
+  createWebMcpHttpProjectionDocument,
   createWebMcpRegistry,
   createWebMcpTestContext,
   WebMcpAuthorizationError,
+  WebMcpHttpError,
   WebMcpValidationError,
 } from "../src";
 
@@ -123,5 +126,133 @@ describe("WebMCP registry", () => {
     await registry.register(tool, { signal: controller.signal });
     controller.abort();
     expect(context.getTools()).toHaveLength(0);
+  });
+});
+
+describe("same-origin HTTP action projection", () => {
+  test("bootstraps typed tools and executes through an exact same-origin POST", async () => {
+    const context = createWebMcpTestContext();
+    const requests: Request[] = [];
+    const requestCredentials: Array<RequestCredentials | undefined> = [];
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      requestCredentials.push(init?.credentials);
+      if (request.method === "GET")
+        return Response.json(
+          createWebMcpHttpProjectionDocument([
+            {
+              annotations: {
+                readOnlyHint: true,
+                untrustedContentHint: true,
+              },
+              description: "Read one project.",
+              inputSchema: Type.Object(
+                { projectId: Type.String({ format: "uuid" }) },
+                { additionalProperties: false },
+              ),
+              name: "project.summary.read",
+              title: "Read project summary",
+            },
+          ]),
+        );
+
+      return Response.json({ id: "project-1" });
+    };
+    const mounted = await bootstrapWebMcpHttpActions({
+      actionBasePath: "/api/owner/webmcp/actions/",
+      fetch: fetcher,
+      manifestPath: "/api/owner/webmcp",
+      modelContext: context,
+      origin: "https://paas.example",
+      formats: {
+        uuid: (value) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+            value,
+          ),
+      },
+    });
+
+    expect(mounted.toolNames).toEqual(["project.summary.read"]);
+    expect(context.getTools()).toHaveLength(1);
+    expect(
+      await context.executeTool("project.summary.read", {
+        projectId: "22222222-2222-4222-8222-222222222222",
+      }),
+    ).toEqual({ id: "project-1" });
+    expect(requests.map(({ method, url }) => ({ method, url }))).toEqual([
+      { method: "GET", url: "https://paas.example/api/owner/webmcp" },
+      {
+        method: "POST",
+        url: "https://paas.example/api/owner/webmcp/actions/project.summary.read",
+      },
+    ]);
+    expect(requestCredentials).toEqual(["same-origin", "same-origin"]);
+    expect(requests[1]?.redirect).toBe("error");
+    mounted.dispose();
+    expect(context.getTools()).toHaveLength(0);
+  });
+
+  test("rejects cross-origin and ambiguous action endpoints before fetch", async () => {
+    let requests = 0;
+    const fetcher = async () => {
+      requests += 1;
+      return Response.json({ tools: [], version: 1 });
+    };
+
+    await expect(
+      bootstrapWebMcpHttpActions({
+        actionBasePath: "/api/actions/",
+        fetch: fetcher,
+        manifestPath: "https://attacker.example/tools",
+        modelContext: createWebMcpTestContext(),
+        origin: "https://paas.example",
+      }),
+    ).rejects.toBeInstanceOf(WebMcpHttpError);
+    await expect(
+      bootstrapWebMcpHttpActions({
+        actionBasePath: "/api/actions?next=/",
+        fetch: fetcher,
+        manifestPath: "/api/tools",
+        modelContext: createWebMcpTestContext(),
+        origin: "https://paas.example",
+      }),
+    ).rejects.toBeInstanceOf(WebMcpHttpError);
+    expect(requests).toBe(1);
+  });
+
+  test("rejects duplicate tools and bounded or non-JSON responses", async () => {
+    expect(() =>
+      createWebMcpHttpProjectionDocument([
+        {
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          name: tool.name,
+        },
+        {
+          description: "Another description.",
+          inputSchema: tool.inputSchema,
+          name: tool.name,
+        },
+      ]),
+    ).toThrow("Duplicate WebMCP tool name");
+
+    const fetcher = async () =>
+      new Response("not json", {
+        headers: {
+          "content-length": "1000",
+          "content-type": "text/plain",
+        },
+      });
+    await expect(
+      bootstrapWebMcpHttpActions({
+        actionBasePath: "/api/actions/",
+        fetch: fetcher,
+        manifestPath: "/api/tools",
+        maxDocumentBytes: 10,
+        modelContext: createWebMcpTestContext(),
+        origin: "https://paas.example",
+      }),
+    ).rejects.toBeInstanceOf(WebMcpHttpError);
   });
 });
