@@ -17,7 +17,7 @@ const TYPEBOX_KIND = "x-absolutejs-typebox-kind";
 export type WebMcpHttpActionDescriptor = {
   annotations?: WebMcpAnnotations;
   description: string;
-  inputSchema: TSchema;
+  inputSchema: Record<string, unknown>;
   name: string;
   title?: string;
 };
@@ -209,7 +209,11 @@ const validateTools = (tools: WebMcpHttpActionDescriptor[]) => {
   const names = new Set<string>();
   for (const tool of tools) {
     try {
-      validateWebMcpTool({ ...tool, execute: () => undefined });
+      validateWebMcpTool({
+        ...tool,
+        execute: () => undefined,
+        inputSchema: tool.inputSchema as TSchema,
+      });
     } catch (error) {
       throw new WebMcpHttpError(
         error instanceof Error ? error.message : "WebMCP tool is invalid",
@@ -246,7 +250,7 @@ const projectionDocument = (candidate: unknown) => {
     });
   const tools = document.tools.map((tool) => ({
     ...tool,
-    inputSchema: runtimeSchema(tool.inputSchema) as TSchema,
+    inputSchema: runtimeSchema(tool.inputSchema) as Record<string, unknown>,
   }));
 
   return { tools: validateTools(tools), version: 1 };
@@ -257,7 +261,7 @@ export const createWebMcpHttpProjectionDocument = (
 ): WebMcpHttpProjectionDocument => ({
   tools: validateTools(tools).map((tool) => ({
     ...tool,
-    inputSchema: serializedSchema(tool.inputSchema) as TSchema,
+    inputSchema: serializedSchema(tool.inputSchema) as Record<string, unknown>,
   })),
   version: 1,
 });
@@ -278,6 +282,7 @@ export const createWebMcpHttpActionTools = (options: {
 
   return tools.map((descriptor) => ({
     ...descriptor,
+    inputSchema: descriptor.inputSchema as TSchema,
     execute: async (input) => {
       const response = await fetcher(
         new URL(encodeURIComponent(descriptor.name), base),
