@@ -51,6 +51,8 @@ const nativeContext = (): WebMcpModelContext | undefined => {
     .modelContext;
 };
 
+export const isWebMcpAvailable = () => nativeContext() !== undefined;
+
 export const createWebMcpRegistry = (options: WebMcpRegistryOptions = {}) => {
   const modelContext = options.modelContext ?? nativeContext();
   if (!modelContext) throw new WebMcpUnavailableError();
@@ -198,4 +200,12 @@ export const createWebMcpRegistry = (options: WebMcpRegistryOptions = {}) => {
     register,
     registerAll,
   };
+};
+
+export const tryCreateWebMcpRegistry = (
+  options: WebMcpRegistryOptions = {},
+) => {
+  const modelContext = options.modelContext ?? nativeContext();
+  if (!modelContext) return undefined;
+  return createWebMcpRegistry({ ...options, modelContext });
 };

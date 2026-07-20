@@ -5,6 +5,8 @@ import {
   createWebMcpHttpProjectionDocument,
   createWebMcpRegistry,
   createWebMcpTestContext,
+  isWebMcpAvailable,
+  tryCreateWebMcpRegistry,
   WebMcpAuthorizationError,
   WebMcpHttpError,
   WebMcpValidationError,
@@ -25,6 +27,16 @@ const tool = {
 };
 
 describe("WebMCP registry", () => {
+  test("supports non-throwing feature detection when WebMCP is unavailable", () => {
+    expect(isWebMcpAvailable()).toBeFalse();
+    expect(tryCreateWebMcpRegistry()).toBeUndefined();
+
+    const context = createWebMcpTestContext();
+    expect(
+      tryCreateWebMcpRegistry({ allowUnreviewed: true, modelContext: context }),
+    ).toBeDefined();
+  });
+
   test("registers the current document.modelContext shape and audits execution", async () => {
     const context = createWebMcpTestContext();
     const receipts: unknown[] = [];

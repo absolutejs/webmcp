@@ -31,6 +31,20 @@ await tools.register({
 });
 ```
 
+For progressive enhancement in browsers where WebMCP may not be available,
+use the non-throwing constructor:
+
+```ts
+import { tryCreateWebMcpRegistry } from "@absolutejs/webmcp";
+
+const tools = tryCreateWebMcpRegistry({ authorize });
+if (tools) await tools.register(tool);
+```
+
+`isWebMcpAvailable()` is also available for feature-gated UI. Keep using
+`createWebMcpRegistry()` when unsupported WebMCP should be treated as a
+configuration error.
+
 The wrapper targets the July 10, 2026 Community Group draft, including the
 `Document.modelContext` location, promise-returning registration, abort-signal
 unregistration, exact `exposedTo` origins, and the `readOnlyHint` and
