@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/webmcp",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Secure WebMCP registration, policy, audit, and test adapters for browser-native AI agent actions.",
   "type": "module",
   "license": "MIT",
@@ -45,7 +45,7 @@
     "check:package": "bun run format && bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
-    "@absolutejs/manifest": "^0.3.0",
+    "@absolutejs/manifest": "^0.7.3",
     "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {

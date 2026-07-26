@@ -31,6 +31,11 @@ export const manifest = defineManifest<Record<string, never>>()({
     tagline:
       "Make every AbsoluteJS page directly actionable by browser agents.",
   },
+  integration: {
+    description:
+      "The host must bind exact origins, authenticated caller context, default-deny authorization, audit receipts, and lifecycle cleanup before registering browser tools.",
+    mode: "code-first",
+  },
   settings: Type.Object({}),
   wiring: [],
 });
