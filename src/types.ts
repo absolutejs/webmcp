@@ -1,3 +1,4 @@
+import type { WebMcpEffectCatalog } from "./effects";
 import type { Static, TSchema } from "@sinclair/typebox";
 
 export type WebMcpAnnotations = {
@@ -5,10 +6,18 @@ export type WebMcpAnnotations = {
   untrustedContentHint?: boolean;
 };
 
-export type WebMcpTool<Schema extends TSchema = TSchema, Output = unknown> = {
+export type WebMcpTool<
+  Schema extends TSchema = TSchema,
+  Output = unknown,
+  Result extends TSchema = TSchema,
+> = {
   annotations?: WebMcpAnnotations;
   description: string;
-  execute: (input: Static<Schema>) => Promise<Output> | Output;
+  outputSchema?: Result;
+  execute: (
+    input: Static<Schema>,
+    options: { signal: AbortSignal },
+  ) => Promise<Output> | Output;
   inputSchema: Schema;
   name: string;
   title?: string;
@@ -17,13 +26,36 @@ export type WebMcpTool<Schema extends TSchema = TSchema, Output = unknown> = {
 export type WebMcpNativeTool = {
   annotations?: WebMcpAnnotations;
   description: string;
-  execute: (input: object) => Promise<unknown>;
+  outputSchema?: object;
+  execute: (
+    input: object,
+    options?: { signal: AbortSignal },
+  ) => Promise<unknown>;
   inputSchema?: object;
   name: string;
   title?: string;
 };
 
+export type WebMcpDiscoveredTool = {
+  name: string;
+  origin?: string;
+  source?: Window | null;
+};
+
+export type WebMcpCoverageReport = {
+  discovery: "available" | "unavailable";
+  registered: string[];
+  visible: Array<{
+    name: string;
+    origin?: string;
+    coverage: "registered" | "outside-registry" | "unverified";
+  }>;
+};
+
 export type WebMcpModelContext = EventTarget & {
+  getTools?: () =>
+    readonly WebMcpDiscoveredTool[] | Promise<readonly WebMcpDiscoveredTool[]>;
+  waitForToolsUntil?: (ready: Promise<unknown>) => void;
   ontoolchange: ((event: Event) => unknown) | null;
   registerTool: (
     tool: WebMcpNativeTool,
@@ -41,16 +73,19 @@ export type WebMcpAuditReceipt = {
   durationMs: number;
   finishedAt: string;
   inputHash: string;
-  outcome: "success" | "denied" | "approval-required" | "error";
+  outcome: "success" | "denied" | "approval-required" | "cancelled" | "error";
   startedAt: string;
   toolName: string;
 };
 
 export type WebMcpRegistryOptions = {
+  effectCatalog?: WebMcpEffectCatalog;
   allowUnreviewed?: boolean;
   authorize?: (request: {
     annotations: WebMcpAnnotations;
     input: object;
+    inputHash: string;
+    signal: AbortSignal;
     name: string;
   }) => Promise<WebMcpAuthorization> | WebMcpAuthorization;
   maxDescriptionLength?: number;

@@ -3,8 +3,12 @@ import type { WebMcpModelContext, WebMcpNativeTool } from "./types";
 const domError = (message: string, name: string) =>
   new DOMException(message, name);
 
-export type WebMcpTestContext = WebMcpModelContext & {
-  executeTool: (name: string, input: object) => Promise<unknown>;
+export type WebMcpTestContext = Omit<WebMcpModelContext, "getTools"> & {
+  executeTool: (
+    name: string,
+    input: object,
+    options?: { signal: AbortSignal },
+  ) => Promise<unknown>;
   getTools: () => WebMcpNativeTool[];
 };
 
@@ -22,10 +26,14 @@ export const createWebMcpTestContext = (): WebMcpTestContext => {
   };
   Object.defineProperties(target, {
     executeTool: {
-      value: async (name: string, input: object) => {
+      value: async (
+        name: string,
+        input: object,
+        options?: { signal: AbortSignal },
+      ) => {
         const registered = tools.get(name);
         if (!registered) throw domError("Unknown WebMCP tool", "NotFoundError");
-        return registered.tool.execute(input);
+        return registered.tool.execute(input, options);
       },
     },
     getTools: {

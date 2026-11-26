@@ -1,10 +1,11 @@
+import { createHash } from "./stable";
+import type { WebMcpEffectCatalog } from "./effects";
 import { FormatRegistry, Kind, type TSchema } from "@sinclair/typebox";
 import { createWebMcpRegistry } from "./registry";
 import type {
   WebMcpAnnotations,
   WebMcpAuditReceipt,
   WebMcpModelContext,
-  WebMcpTool,
 } from "./types";
 import { validateWebMcpTool, WebMcpValidationError } from "./validate";
 
@@ -18,6 +19,7 @@ export type WebMcpHttpActionDescriptor = {
   annotations?: WebMcpAnnotations;
   description: string;
   inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
   name: string;
   title?: string;
 };
@@ -142,8 +144,9 @@ const jsonResponse = async (
   response: Response,
   maximumBytes: number,
   label: string,
+  acceptedStatus?: number,
 ) => {
-  if (!response.ok)
+  if (!response.ok && response.status !== acceptedStatus)
     throw new WebMcpHttpError(
       `${label} failed with status ${response.status}`,
       {
@@ -213,6 +216,7 @@ const validateTools = (tools: WebMcpHttpActionDescriptor[]) => {
         ...tool,
         execute: () => undefined,
         inputSchema: tool.inputSchema as TSchema,
+        outputSchema: tool.outputSchema as TSchema | undefined,
       });
     } catch (error) {
       throw new WebMcpHttpError(
@@ -251,6 +255,9 @@ const projectionDocument = (candidate: unknown) => {
   const tools = document.tools.map((tool) => ({
     ...tool,
     inputSchema: runtimeSchema(tool.inputSchema) as Record<string, unknown>,
+    ...(tool.outputSchema !== undefined && {
+      outputSchema: runtimeSchema(tool.outputSchema) as Record<string, unknown>,
+    }),
   }));
 
   return { tools: validateTools(tools), version: 1 };
@@ -258,58 +265,128 @@ const projectionDocument = (candidate: unknown) => {
 
 export const createWebMcpHttpProjectionDocument = (
   tools: WebMcpHttpActionDescriptor[],
-): WebMcpHttpProjectionDocument => ({
-  tools: validateTools(tools).map((tool) => ({
-    ...tool,
-    inputSchema: serializedSchema(tool.inputSchema) as Record<string, unknown>,
-  })),
-  version: 1,
-});
+  effectCatalog?: WebMcpEffectCatalog,
+): WebMcpHttpProjectionDocument => {
+  for (const tool of tools) effectCatalog?.check(tool);
+  return {
+    tools: validateTools(tools).map((tool) => ({
+      ...tool,
+      inputSchema: serializedSchema(tool.inputSchema) as Record<
+        string,
+        unknown
+      >,
+      ...(tool.outputSchema !== undefined && {
+        outputSchema: serializedSchema(tool.outputSchema) as Record<
+          string,
+          unknown
+        >,
+      }),
+    })),
+    version: 1,
+  };
+};
+
+export type WebMcpHttpApproval = {
+  confirmPath: string;
+  requestAssertion: (review: {
+    name: string;
+    input: object;
+    actionId: string;
+    publicKey: Record<string, unknown>;
+    expiresAt: number;
+    signal?: AbortSignal;
+  }) => Promise<unknown>;
+};
+
+const record = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export const createWebMcpHttpActionTools = (options: {
   actionBasePath: string;
+  approval?: WebMcpHttpApproval;
   fetch?: WebMcpHttpFetch;
   maxResponseBytes?: number;
   origin?: string;
   tools: WebMcpHttpActionDescriptor[];
-}): WebMcpTool[] => {
+}) => {
   const origin = browserOrigin(options.origin);
   const base = sameOriginActionBase(options.actionBasePath, origin);
   const fetcher = options.fetch ?? globalThis.fetch;
   if (!fetcher)
     throw new WebMcpValidationError("WebMCP HTTP actions require fetch");
   const tools = validateTools(options.tools);
+  const confirmUrl =
+    options.approval && sameOriginUrl(options.approval.confirmPath, origin);
 
   return tools.map((descriptor) => ({
     ...descriptor,
     inputSchema: descriptor.inputSchema as TSchema,
-    execute: async (input) => {
-      const response = await fetcher(
-        new URL(encodeURIComponent(descriptor.name), base),
-        {
-          body: JSON.stringify(input),
+    outputSchema: descriptor.outputSchema as TSchema | undefined,
+    execute: async (input: object, invocation?: { signal: AbortSignal }) => {
+      const post = (url: URL, body: unknown) =>
+        fetcher(url, {
+          body: JSON.stringify(body),
           cache: "no-store",
           credentials: "same-origin",
-          headers: {
-            accept: JSON_MEDIA_TYPE,
-            "content-type": JSON_MEDIA_TYPE,
-          },
+          headers: { accept: JSON_MEDIA_TYPE, "content-type": JSON_MEDIA_TYPE },
           method: "POST",
+          signal: invocation?.signal,
           redirect: "error",
-        },
+        });
+      const response = await post(
+        new URL(encodeURIComponent(descriptor.name), base),
+        input,
       );
-
+      const limit = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+      const label = `WebMCP action ${descriptor.name}`;
+      if (response.status !== 428 || !options.approval || !confirmUrl)
+        return jsonResponse(response, limit, label);
+      const review = await jsonResponse(response, limit, label, 428);
+      if (
+        !record(review) ||
+        review.kind !== "approval-required" ||
+        review.toolName !== descriptor.name ||
+        review.inputHash !== (await createHash(input)) ||
+        typeof review.actionId !== "string" ||
+        !review.actionId ||
+        typeof review.expiresAt !== "number" ||
+        !Number.isFinite(review.expiresAt) ||
+        review.expiresAt <= Date.now() ||
+        !record(review.publicKey) ||
+        review.publicKey.userVerification !== "required" ||
+        typeof review.publicKey.challenge !== "string"
+      )
+        throw new WebMcpHttpError("Invalid WebMCP approval request", {
+          kind: "response-invalid",
+        });
+      invocation?.signal.throwIfAborted();
+      const assertion = await options.approval.requestAssertion({
+        name: descriptor.name,
+        input: structuredClone(input),
+        actionId: review.actionId,
+        publicKey: review.publicKey,
+        expiresAt: review.expiresAt,
+        signal: invocation?.signal,
+      });
+      invocation?.signal.throwIfAborted();
+      if (!assertion || review.expiresAt <= Date.now())
+        throw new WebMcpValidationError(
+          "WebMCP approval expired or was declined",
+        );
       return jsonResponse(
-        response,
-        options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
-        `WebMCP action ${descriptor.name}`,
+        await post(confirmUrl, { actionId: review.actionId, assertion }),
+        limit,
+        label,
       );
     },
   }));
 };
 
-export const bootstrapWebMcpHttpActions = async (options: {
+type BootstrapOptions = {
+  effectCatalog?: WebMcpEffectCatalog;
+  signal?: AbortSignal;
   actionBasePath: string;
+  approval?: WebMcpHttpApproval;
   fetch?: WebMcpHttpFetch;
   manifestPath: string;
   maxDocumentBytes?: number;
@@ -318,7 +395,10 @@ export const bootstrapWebMcpHttpActions = async (options: {
   onAudit?: (receipt: WebMcpAuditReceipt) => Promise<void> | void;
   origin?: string;
   formats?: Record<string, (value: string) => boolean>;
-}) => {
+};
+
+const mountHttpActions = async (options: BootstrapOptions) => {
+  options.signal?.throwIfAborted();
   const origin = browserOrigin(options.origin);
   const manifestUrl = sameOriginUrl(options.manifestPath, origin);
   const fetcher = options.fetch ?? globalThis.fetch;
@@ -329,6 +409,7 @@ export const bootstrapWebMcpHttpActions = async (options: {
     credentials: "same-origin",
     headers: { accept: JSON_MEDIA_TYPE },
     method: "GET",
+    signal: options.signal,
     redirect: "error",
   });
   const document = projectionDocument(
@@ -338,28 +419,48 @@ export const bootstrapWebMcpHttpActions = async (options: {
       "WebMCP projection document",
     ),
   );
+  options.signal?.throwIfAborted();
   for (const [name, check] of Object.entries(options.formats ?? {}))
     if (!FormatRegistry.Has(name)) FormatRegistry.Set(name, check);
   const tools = createWebMcpHttpActionTools({
     actionBasePath: options.actionBasePath,
+    approval: options.approval,
     fetch: fetcher,
     maxResponseBytes: options.maxResponseBytes,
     origin,
     tools: document.tools,
   });
   const registry = createWebMcpRegistry({
+    effectCatalog: options.effectCatalog,
     allowUnreviewed: true,
     maxOutputBytes: options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
     modelContext: options.modelContext,
     onAudit: options.onAudit,
   });
-  const dispose = await registry.registerAll(tools);
+  const dispose = await registry.registerAll(tools, { signal: options.signal });
 
   return {
+    inspectCoverage: registry.inspectCoverage,
+    watchCoverage: registry.watchCoverage,
     dispose: () => {
       dispose();
       registry.dispose();
     },
     toolNames: tools.map(({ name }) => name),
   };
+};
+
+export const bootstrapWebMcpHttpActions = async (options: BootstrapOptions) => {
+  const context =
+    options.modelContext ??
+    (typeof document === "undefined"
+      ? undefined
+      : (document as Document & { modelContext?: WebMcpModelContext })
+          .modelContext);
+  // Announce before the manifest fetch or any partial registrations become visible.
+  const ready =
+    Promise.withResolvers<Awaited<ReturnType<typeof mountHttpActions>>>();
+  context?.waitForToolsUntil?.(ready.promise);
+  ready.resolve(mountHttpActions({ ...options, modelContext: context }));
+  return ready.promise;
 };

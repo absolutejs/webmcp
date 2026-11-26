@@ -50,23 +50,22 @@ export const validateWebMcpTool = <Schema extends TSchema>(
     throw new WebMcpValidationError("WebMCP tool description is too long");
   if (typeof tool.execute !== "function")
     throw new WebMcpValidationError("WebMCP tool execute callback is required");
-  if (
-    typeof tool.inputSchema !== "object" ||
-    tool.inputSchema === null ||
-    Array.isArray(tool.inputSchema)
-  )
-    throw new WebMcpValidationError(
-      "WebMCP input schema must be a JSON Schema object",
-    );
-  try {
-    if (!JSON.stringify(tool.inputSchema))
+  for (const [label, schema] of [
+    ["input", tool.inputSchema],
+    ["output", tool.outputSchema],
+  ] as const) {
+    if (label === "output" && schema === undefined) continue;
+    if (!schema || typeof schema !== "object" || Array.isArray(schema))
       throw new WebMcpValidationError(
-        "WebMCP input schema must be JSON serializable",
+        `WebMCP ${label} schema must be a JSON Schema object`,
       );
-  } catch {
-    throw new WebMcpValidationError(
-      "WebMCP input schema must be JSON serializable",
-    );
+    try {
+      if (!JSON.stringify(schema)) throw new Error();
+    } catch {
+      throw new WebMcpValidationError(
+        `WebMCP ${label} schema must be JSON serializable`,
+      );
+    }
   }
 };
 

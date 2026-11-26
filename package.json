@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/webmcp",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Secure WebMCP registration, policy, audit, and test adapters for browser-native AI agent actions.",
   "type": "module",
   "license": "MIT",
@@ -27,7 +27,11 @@
       "types": "./dist/manifest.d.ts",
       "import": "./dist/manifest.js"
     },
-    "./manifest.json": "./dist/manifest.json"
+    "./manifest.json": "./dist/manifest.json",
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    }
   },
   "files": [
     "CHANGELOG.md",
@@ -43,7 +47,7 @@
     "format": "prettier --write \"./**/*.{ts,json,md,yml}\"",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "build": "rm -rf dist && bun build src/index.ts src/manifest.ts --outdir dist --target=browser --external @absolutejs/manifest --external @sinclair/typebox && tsc -p tsconfig.build.json && absolute-manifest emit",
+    "build": "rm -rf dist && bun build src/index.ts src/server.ts src/manifest.ts --outdir dist --target=browser --external @absolutejs/manifest --external @sinclair/typebox && tsc -p tsconfig.build.json && absolute-manifest emit",
     "check:package": "bun run format && bun run typecheck && bun run test && bun run build && absolute-changelog check",
     "prepublishOnly": "bun run check:package"
   },
@@ -52,9 +56,29 @@
     "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {
+    "@absolutejs/agency": "0.7.4",
+    "@absolutejs/auth": "0.103.4",
     "@absolutejs/changelog": "^0.6.0",
+    "@absolutejs/rate-limit": "0.8.0",
+    "@simplewebauthn/server": "13.3.2",
     "@types/bun": "^1.3.14",
     "prettier": "^3.8.3",
     "typescript": "^6.0.3"
+  },
+  "peerDependencies": {
+    "@absolutejs/agency": "^0.7.4",
+    "@absolutejs/auth": "^0.103.4",
+    "@absolutejs/rate-limit": "^0.8.0"
+  },
+  "peerDependenciesMeta": {
+    "@absolutejs/agency": {
+      "optional": true
+    },
+    "@absolutejs/auth": {
+      "optional": true
+    },
+    "@absolutejs/rate-limit": {
+      "optional": true
+    }
   }
 }

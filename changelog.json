@@ -1,5 +1,65 @@
 {
 	"contract": 1,
 	"name": "@absolutejs/webmcp",
-	"releases": []
+	"releases": [
+		{
+			"changes": [
+				{
+					"kind": "added",
+					"summary": "Check tool hints against a trusted effect catalog and support server-enforced passkey approvals, one-use Agency leases and per-user action limits.",
+					"symbols": [
+						"createWebMcpEffectCatalog",
+						"WebMcpCatalogAction",
+						"WebMcpEffectCatalog",
+						"WebMcpRegistryOptions",
+						"createWebMcpRegistry",
+						"tryCreateWebMcpRegistry",
+						"createWebMcpHttpProjectionDocument",
+						"bootstrapWebMcpHttpActions",
+						"createWebMcpHttpActionTools",
+						"WebMcpHttpApproval",
+						"createWebMcpActionServer",
+						"WebMcpActionError",
+						"WebMcpServerSession"
+					]
+				},
+				{
+					"kind": "added",
+					"summary": "Inspect visible tool coverage from a registry or HTTP bootstrap handle and bind approval decisions to the audited input hash.",
+					"symbols": [
+						"WebMcpModelContext",
+						"WebMcpRegistryOptions",
+						"createWebMcpRegistry",
+						"tryCreateWebMcpRegistry",
+						"WebMcpTestContext",
+						"bootstrapWebMcpHttpActions",
+						"WebMcpDiscoveredTool",
+						"WebMcpCoverageReport"
+					]
+				},
+				{
+					"kind": "changed",
+					"summary": "Forward invocation cancellation, announce HTTP registration readiness, validate declared tool outputs and subscribe to coverage changes.",
+					"symbols": [
+						"WebMcpTool",
+						"WebMcpNativeTool",
+						"WebMcpModelContext",
+						"WebMcpRegistryOptions",
+						"WebMcpTestContext",
+						"WebMcpAuditReceipt",
+						"WebMcpHttpActionDescriptor",
+						"createWebMcpTestContext",
+						"createWebMcpRegistry",
+						"tryCreateWebMcpRegistry",
+						"validateWebMcpTool",
+						"bootstrapWebMcpHttpActions",
+						"createWebMcpHttpActionTools",
+						"createWebMcpHttpProjectionDocument"
+					]
+				}
+			],
+			"date": "2026-11-26",
+			"version": "0.2.0"
+		}
+	]
 }
