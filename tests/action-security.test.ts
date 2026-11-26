@@ -117,13 +117,7 @@ const fixture = async (cap = 10) => {
       origin: "https://example.org",
       rpId: "example.org",
       challenges: createInMemoryWebAuthnChallengeStore(),
-      credentials: {
-        ...credentials,
-        recordCredentialUse: async (c, n) => {
-          await credentials.saveCredential({ ...c, counter: n });
-          return true;
-        },
-      },
+      credentials,
     },
   });
   const start = async () => {

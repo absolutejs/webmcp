@@ -210,8 +210,8 @@ const actions = createWebMcpActionServer({
 
 Use Agency and challenge stores shared across server replicas. The credential
 store's `recordCredentialUse` operation checks ownership, public key, and prior
-counter atomically. The stores shipped with Auth 0.103.4 lack this method.
-Use a store implementing the operation or an Auth release that includes it.
+counter atomically. Auth 0.104.0 provides this operation in its in-memory,
+Postgres, and Neon credential stores. Custom stores must implement it as well.
 The server checks for the operation at startup. The rate-limit store charges the authenticated user and action
 across sessions, with separate buckets for invocation and confirmation.
 

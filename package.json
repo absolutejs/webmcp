@@ -57,7 +57,7 @@
   },
   "devDependencies": {
     "@absolutejs/agency": "0.7.4",
-    "@absolutejs/auth": "0.103.4",
+    "@absolutejs/auth": "0.104.0",
     "@absolutejs/changelog": "^0.6.0",
     "@absolutejs/rate-limit": "0.8.0",
     "@simplewebauthn/server": "13.3.2",
@@ -67,7 +67,7 @@
   },
   "peerDependencies": {
     "@absolutejs/agency": "^0.7.4",
-    "@absolutejs/auth": "^0.103.4",
+    "@absolutejs/auth": "^0.104.0",
     "@absolutejs/rate-limit": "^0.8.0"
   },
   "peerDependenciesMeta": {
